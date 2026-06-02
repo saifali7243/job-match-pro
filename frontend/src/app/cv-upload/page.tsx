@@ -76,6 +76,8 @@ export default function CVUploadPage() {
 
       const data: ParsedProfile = await response.json();
       setProfile(data);
+      // Save to localStorage so dashboard picks it up
+      localStorage.setItem("jmp_profile", JSON.stringify(data));
       setParseState("done");
     } catch (err: unknown) {
       setParseState("error");

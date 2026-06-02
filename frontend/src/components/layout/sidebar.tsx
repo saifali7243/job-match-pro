@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   LayoutDashboard,
   Upload,
@@ -31,6 +31,19 @@ const navItems = [
 
 function SidebarContent({ onNavClick }: { onNavClick?: () => void }) {
   const pathname = usePathname();
+  const [userName, setUserName] = useState("User");
+  const [userEmail, setUserEmail] = useState("");
+
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem("jmp_profile");
+      if (saved) {
+        const profile = JSON.parse(saved);
+        if (profile.name) setUserName(profile.name);
+        if (profile.email) setUserEmail(profile.email);
+      }
+    } catch {}
+  }, []);
 
   return (
     <div className="flex flex-col h-full">
@@ -85,19 +98,23 @@ function SidebarContent({ onNavClick }: { onNavClick?: () => void }) {
         <div className="flex items-center gap-3 px-3 py-2">
           <Avatar className="h-8 w-8">
             <AvatarFallback className="bg-gradient-to-br from-primary/20 to-purple-500/20 text-primary text-xs font-bold">
-              RK
+              {userName.split(" ").map((n) => n[0]).join("").slice(0, 2).toUpperCase() || "U"}
             </AvatarFallback>
           </Avatar>
           <div className="flex-1 min-w-0">
-            <p className="text-sm font-medium truncate">Rahul Kumar</p>
-            <p className="text-xs text-muted-foreground truncate">rahul@email.com</p>
+            <p className="text-sm font-medium truncate">{userName}</p>
+            <p className="text-xs text-muted-foreground truncate">{userEmail || "No email set"}</p>
           </div>
         </div>
         <div className="space-y-1">
-          <button className="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-muted-foreground hover:bg-accent hover:text-accent-foreground w-full transition-colors">
+          <Link
+            href="/settings"
+            onClick={onNavClick}
+            className="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-muted-foreground hover:bg-accent hover:text-accent-foreground w-full transition-colors"
+          >
             <Settings className="w-4 h-4" />
             Settings
-          </button>
+          </Link>
           <button className="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-muted-foreground hover:bg-destructive/10 hover:text-destructive w-full transition-colors">
             <LogOut className="w-4 h-4" />
             Sign Out

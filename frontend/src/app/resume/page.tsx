@@ -81,6 +81,9 @@ export default function ResumePage() {
       if (response.ok) {
         const data: ResumeData = await response.json();
         setResume(data);
+        // Track resume count for dashboard
+        const count = parseInt(localStorage.getItem("jmp_resume_count") || "0") + 1;
+        localStorage.setItem("jmp_resume_count", count.toString());
       }
     } catch (err) {
       console.error("Failed to generate resume:", err);

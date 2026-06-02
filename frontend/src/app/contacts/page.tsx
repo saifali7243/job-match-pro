@@ -72,7 +72,10 @@ export default function ContactsPage() {
       setContacts((prev) => {
         const existingIds = new Set(prev.map((c) => c.email));
         const newContacts = data.filter((c) => !existingIds.has(c.email));
-        return [...prev, ...newContacts];
+        const updated = [...prev, ...newContacts];
+        // Save to localStorage so dashboard picks it up
+        localStorage.setItem("jmp_contacts", JSON.stringify(updated));
+        return updated;
       });
     } catch (err: unknown) {
       setSearchError(err instanceof Error ? err.message : "Failed to search contacts");
