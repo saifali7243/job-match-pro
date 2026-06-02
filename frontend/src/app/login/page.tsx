@@ -6,6 +6,11 @@ import { Sparkles, Briefcase, FileText, Users } from "lucide-react";
 
 export default function LoginPage() {
   const handleGoogleLogin = () => {
+    // Try NextAuth Google sign-in, fallback to dashboard
+    window.location.href = "/api/auth/signin/google?callbackUrl=/";
+  };
+
+  const handleSkipLogin = () => {
     window.location.href = "/";
   };
 
@@ -16,23 +21,21 @@ export default function LoginPage() {
       <div className="orb w-[400px] h-[400px] bg-blue-600 -bottom-48 -right-48 animate-blob" style={{ animationDelay: "3s" }} />
       <div className="orb w-[300px] h-[300px] bg-pink-600 top-1/3 right-1/4 animate-blob" style={{ animationDelay: "5s" }} />
 
-      {/* Spinning 3D ring (decorative) */}
+      {/* Decorative rings */}
       <div className="absolute top-20 right-20 w-32 h-32 border-2 border-primary/20 rounded-full animate-spin-slow hidden lg:block" />
       <div className="absolute bottom-32 left-20 w-24 h-24 border border-purple-500/20 rounded-full animate-spin-slow hidden lg:block" style={{ animationDirection: "reverse" }} />
 
       <div className="w-full max-w-md space-y-8 relative z-10">
-        {/* Logo with 3D float */}
+        {/* Logo */}
         <div className="text-center animate-float-slow">
           <div className="w-20 h-20 bg-gradient-to-br from-primary via-purple-600 to-pink-500 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-2xl shadow-purple-500/30 animate-pulse-glow">
             <Sparkles className="w-10 h-10 text-white" />
           </div>
           <h1 className="text-4xl font-bold gradient-text">JobMatch Pro</h1>
-          <p className="text-muted-foreground mt-2">
-            AI-powered job matching &amp; resume builder
-          </p>
+          <p className="text-muted-foreground mt-2">AI-powered job matching &amp; resume builder</p>
         </div>
 
-        {/* Login Card with glass effect */}
+        {/* Login Card */}
         <Card className="glass card-3d border-primary/10">
           <CardHeader className="text-center">
             <CardTitle className="text-xl">Get Started</CardTitle>
@@ -51,12 +54,19 @@ export default function LoginPage() {
               Continue with Google
             </Button>
 
+            <Button
+              variant="outline"
+              className="w-full h-11 text-sm"
+              onClick={handleSkipLogin}
+            >
+              Skip for now (use without account)
+            </Button>
+
             <div className="relative">
               <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-border/50" /></div>
               <div className="relative flex justify-center text-xs uppercase"><span className="bg-card px-2 text-muted-foreground">What you get</span></div>
             </div>
 
-            {/* Features with hover animations */}
             <div className="space-y-3 pt-2">
               <div className="flex items-center gap-3 text-sm p-2 rounded-lg hover:bg-accent/50 transition-all hover:translate-x-1 cursor-default">
                 <div className="w-9 h-9 rounded-lg bg-blue-500/10 flex items-center justify-center animate-float" style={{ animationDelay: "0s" }}>
@@ -80,9 +90,7 @@ export default function LoginPage() {
           </CardContent>
         </Card>
 
-        <p className="text-center text-xs text-muted-foreground">
-          Free forever. No credit card required.
-        </p>
+        <p className="text-center text-xs text-muted-foreground">Free forever. No credit card required.</p>
       </div>
     </div>
   );

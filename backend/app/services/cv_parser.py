@@ -59,18 +59,41 @@ Resume text:
         response_text = response_text.split("\n", 1)[1].rsplit("```", 1)[0]
 
     data = json.loads(response_text)
+
+    # Safely parse experience (handle missing/null fields)
+    experiences = []
+    for exp in data.get("experience", []):
+        if isinstance(exp, dict):
+            experiences.append(Experience(
+                company=exp.get("company") or "Unknown",
+                role=exp.get("role") or exp.get("title") or "Unknown",
+                duration=exp.get("duration") or exp.get("period") or exp.get("dates") or "N/A",
+                highlights=exp.get("highlights") or exp.get("responsibilities") or exp.get("bullets") or [],
+            ))
+
+    # Safely parse education
+    educations = []
+    for edu in data.get("education", []):
+        if isinstance(edu, dict):
+            educations.append(Education(
+                degree=edu.get("degree") or edu.get("qualification") or "Unknown",
+                college=edu.get("college") or edu.get("university") or edu.get("institution") or "Unknown",
+                year=edu.get("year") or edu.get("graduation_year") or None,
+                gpa=edu.get("gpa") or edu.get("grade") or None,
+            ))
+
     return ParsedProfile(
-        name=data.get("name", "Unknown"),
+        name=data.get("name") or "Unknown",
         email=data.get("email"),
         phone=data.get("phone"),
         location=data.get("location"),
-        titles=data.get("titles", []),
-        skills=data.get("skills", []),
-        experience_years=data.get("experience_years", 0),
-        experience=[Experience(**exp) for exp in data.get("experience", [])],
-        education=[Education(**edu) for edu in data.get("education", [])],
-        certifications=data.get("certifications", []),
-        summary=data.get("summary"),
+        titles=data.get("titles") or data.get("job_titles") or [],
+        skills=data.get("skills") or data.get("technical_skills") or [],
+        experience_years=data.get("experience_years") or data.get("years_of_experience") or 0,
+        experience=experiences,
+        education=educations,
+        certifications=data.get("certifications") or data.get("certificates") or [],
+        summary=data.get("summary") or data.get("professional_summary"),
     )
 
 

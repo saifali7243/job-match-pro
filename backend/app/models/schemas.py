@@ -3,16 +3,16 @@ from typing import Optional
 
 
 class Experience(BaseModel):
-    company: str
-    role: str
-    duration: str
-    highlights: list[str]
+    company: str = "Unknown"
+    role: str = "Unknown"
+    duration: Optional[str] = None
+    highlights: list[str] = []
 
 
 class Education(BaseModel):
-    degree: str
-    college: str
-    year: str
+    degree: str = "Unknown"
+    college: str = "Unknown"
+    year: Optional[str] = None
     gpa: Optional[str] = None
 
 
