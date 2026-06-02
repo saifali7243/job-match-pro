@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -26,18 +26,37 @@ import {
   Loader2,
   FileDown,
   Printer,
+  Download,
 } from "lucide-react";
-import { mockResume, mockJobs } from "@/lib/mock-data";
+import { mockJobs, mockResume } from "@/lib/mock-data";
+
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+
+interface ResumeData {
+  id: string;
+  template: string;
+  job_id: string;
+  sections: {
+    summary: string;
+    experience: { company: string; role: string; duration: string; bullets: string[] }[];
+    skills: string[];
+    education: { degree: string; college: string; year: string; gpa: string | null }[];
+    certifications: string[];
+  };
+  ats_score: number;
+}
 
 export default function ResumePage() {
   const [selectedJob, setSelectedJob] = useState(mockJobs[0]);
-  const [resume, setResume] = useState(mockResume);
+  const [resume, setResume] = useState<ResumeData>(mockResume as ResumeData);
   const [template, setTemplate] = useState("modern");
   const [aiChat, setAiChat] = useState<{ role: string; content: string }[]>([]);
   const [aiInput, setAiInput] = useState("");
   const [isAiThinking, setIsAiThinking] = useState(false);
   const [editingSection, setEditingSection] = useState<string | null>(null);
   const [editContent, setEditContent] = useState("");
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [isExporting, setIsExporting] = useState(false);
 
   const handleJobChange = (value: string | null) => {
     if (value) setSelectedJob(mockJobs.find((j) => j.id === value) || mockJobs[0]);
@@ -46,25 +65,86 @@ export default function ResumePage() {
     if (value) setTemplate(value);
   };
 
-  const handleAiSend = () => {
+  const generateResume = async () => {
+    setIsGenerating(true);
+    try {
+      const response = await fetch(`${API_BASE}/api/resume/generate`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          profile_id: "current-user",
+          job_id: selectedJob.id,
+          template: template,
+        }),
+      });
+
+      if (response.ok) {
+        const data: ResumeData = await response.json();
+        setResume(data);
+      }
+    } catch (err) {
+      console.error("Failed to generate resume:", err);
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+
+  const handleAiSend = async () => {
     if (!aiInput.trim()) return;
     const userMsg = aiInput;
     setAiChat((prev) => [...prev, { role: "user", content: userMsg }]);
     setAiInput("");
     setIsAiThinking(true);
 
-    setTimeout(() => {
-      let response = "";
-      if (userMsg.toLowerCase().includes("summary")) {
-        response = 'Here\'s an improved summary:\n\n"Innovative Full Stack Developer with 4+ years building high-scale distributed systems. Expert in React, TypeScript, and Python with proven ability to reduce system latency by 40% and mentor engineering teams."';
-      } else if (userMsg.toLowerCase().includes("metric") || userMsg.toLowerCase().includes("number")) {
-        response = "I suggest adding metrics:\n\n- Specify API request volume (e.g., '1.2M daily')\n- Add percentage improvements\n- Include team size\n- Revenue impact if available";
+    try {
+      const response = await fetch(`${API_BASE}/api/resume/improve`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          section: "summary",
+          content: resume.sections.summary,
+          instruction: userMsg,
+          job_description: selectedJob.description,
+        }),
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setAiChat((prev) => [...prev, { role: "assistant", content: data.improved_content }]);
       } else {
-        response = "I can help! Try asking me to:\n- Improve the summary\n- Add metrics to experience\n- Make a section more concise\n- Match keywords from the JD";
+        setAiChat((prev) => [...prev, { role: "assistant", content: "Sorry, I couldn't process that request. Make sure the backend is running." }]);
       }
-      setAiChat((prev) => [...prev, { role: "assistant", content: response }]);
+    } catch {
+      setAiChat((prev) => [...prev, { role: "assistant", content: "Connection error. Make sure the backend is running on port 8000." }]);
+    } finally {
       setIsAiThinking(false);
-    }, 1500);
+    }
+  };
+
+  const applyAiSuggestion = (content: string) => {
+    setResume({ ...resume, sections: { ...resume.sections, summary: content } });
+  };
+
+  const exportResume = async (format: "pdf" | "docx") => {
+    setIsExporting(true);
+    try {
+      const response = await fetch(`${API_BASE}/api/resume/export/${resume.id}?format=${format}`);
+      if (response.ok) {
+        const blob = await response.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `resume_${resume.id}.${format}`;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        window.URL.revokeObjectURL(url);
+      }
+    } catch (err) {
+      console.error("Export failed:", err);
+    } finally {
+      setIsExporting(false);
+    }
   };
 
   const startEditing = (section: string, content: string) => { setEditingSection(section); setEditContent(content); };
@@ -74,25 +154,29 @@ export default function ResumePage() {
   };
 
   return (
-    <div className="p-8 space-y-6">
-      <div className="flex items-center justify-between">
+    <div className="p-4 sm:p-6 lg:p-8 space-y-6">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 pt-8 lg:pt-0">
         <div>
-          <h1 className="text-3xl font-bold">Resume Builder</h1>
-          <p className="text-muted-foreground mt-1">
+          <h1 className="text-2xl sm:text-3xl font-bold">Resume Builder</h1>
+          <p className="text-muted-foreground mt-1 text-sm">
             AI-tailored resume for: <strong>{selectedJob.title}</strong> at <strong>{selectedJob.company}</strong>
           </p>
         </div>
-        <div className="flex items-center gap-3">
-          <Badge className="bg-green-500/10 text-green-500 border-green-500/20 text-base py-1 px-3">ATS Score: {resume.ats_score}%</Badge>
-          <Button variant="outline" className="gap-2"><FileDown className="w-4 h-4" /> PDF</Button>
-          <Button variant="outline" className="gap-2"><FileText className="w-4 h-4" /> DOCX</Button>
-          <Button variant="outline" className="gap-2"><Printer className="w-4 h-4" /> Print</Button>
+        <div className="flex flex-wrap items-center gap-2">
+          <Badge className="bg-green-500/10 text-green-500 border-green-500/20 py-1 px-3">ATS: {resume.ats_score}%</Badge>
+          <Button variant="outline" size="sm" className="gap-1" onClick={() => exportResume("pdf")} disabled={isExporting}>
+            <FileDown className="w-4 h-4" /> PDF
+          </Button>
+          <Button variant="outline" size="sm" className="gap-1" onClick={() => exportResume("docx")} disabled={isExporting}>
+            <FileText className="w-4 h-4" /> DOCX
+          </Button>
         </div>
       </div>
 
+      {/* Job + Template Selector */}
       <Card>
-        <CardContent className="p-4 flex items-center gap-4">
-          <div className="flex-1">
+        <CardContent className="p-4 flex flex-col sm:flex-row items-end gap-4">
+          <div className="flex-1 w-full">
             <Label className="text-xs text-muted-foreground">Tailoring for Job</Label>
             <Select value={selectedJob.id} onValueChange={handleJobChange}>
               <SelectTrigger><SelectValue /></SelectTrigger>
@@ -101,7 +185,7 @@ export default function ResumePage() {
               </SelectContent>
             </Select>
           </div>
-          <div className="w-48">
+          <div className="w-full sm:w-48">
             <Label className="text-xs text-muted-foreground">Template</Label>
             <Select value={template} onValueChange={handleTemplateChange}>
               <SelectTrigger><SelectValue /></SelectTrigger>
@@ -113,22 +197,24 @@ export default function ResumePage() {
               </SelectContent>
             </Select>
           </div>
-          <Button className="gap-2 mt-4"><Sparkles className="w-4 h-4" /> Regenerate with AI</Button>
+          <Button className="gap-2 w-full sm:w-auto" onClick={generateResume} disabled={isGenerating}>
+            {isGenerating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
+            {isGenerating ? "Generating..." : "Regenerate with AI"}
+          </Button>
         </CardContent>
       </Card>
 
+      {/* Main Content: Editor + AI Chat */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Resume Editor */}
         <div className="lg:col-span-2 space-y-4">
-          <Card>
+          {/* Summary */}
+          <Card className="card-3d">
             <CardHeader className="flex flex-row items-center justify-between pb-3">
               <CardTitle className="text-base">Professional Summary</CardTitle>
               <div className="flex gap-2">
                 <Button variant="ghost" size="sm" className="gap-1 text-xs" onClick={() => startEditing("summary", resume.sections.summary)}>
                   <Wand2 className="w-3 h-3" /> Edit
-                </Button>
-                <Button variant="ghost" size="sm" className="gap-1 text-xs text-purple-500">
-                  <Sparkles className="w-3 h-3" /> Improve with AI
                 </Button>
               </div>
             </CardHeader>
@@ -147,10 +233,10 @@ export default function ResumePage() {
             </CardContent>
           </Card>
 
-          <Card>
+          {/* Experience */}
+          <Card className="card-3d">
             <CardHeader className="flex flex-row items-center justify-between pb-3">
               <CardTitle className="text-base">Experience</CardTitle>
-              <Button variant="ghost" size="sm" className="gap-1 text-xs text-purple-500"><Sparkles className="w-3 h-3" /> Add metrics to all</Button>
             </CardHeader>
             <CardContent className="space-y-6">
               {resume.sections.experience.map((exp, i) => (
@@ -158,14 +244,12 @@ export default function ResumePage() {
                   {i > 0 && <Separator className="mb-4" />}
                   <div className="flex justify-between items-start mb-2">
                     <div><h4 className="font-semibold">{exp.role}</h4><p className="text-sm text-muted-foreground">{exp.company} &bull; {exp.duration}</p></div>
-                    <Button variant="ghost" size="sm" className="text-xs text-purple-500 gap-1"><Sparkles className="w-3 h-3" /> Improve</Button>
                   </div>
                   <ul className="space-y-2">
                     {exp.bullets.map((bullet, j) => (
                       <li key={j} className="text-sm text-muted-foreground flex items-start gap-2 group">
                         <span className="text-primary mt-1">&bull;</span>
                         <span className="flex-1">{bullet}</span>
-                        <Button variant="ghost" size="sm" className="opacity-0 group-hover:opacity-100 text-xs h-6 px-2"><Sparkles className="w-3 h-3" /></Button>
                       </li>
                     ))}
                   </ul>
@@ -174,11 +258,9 @@ export default function ResumePage() {
             </CardContent>
           </Card>
 
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between pb-3">
-              <CardTitle className="text-base">Skills</CardTitle>
-              <Button variant="ghost" size="sm" className="gap-1 text-xs text-purple-500"><Sparkles className="w-3 h-3" /> Reorder for JD</Button>
-            </CardHeader>
+          {/* Skills */}
+          <Card className="card-3d">
+            <CardHeader className="pb-3"><CardTitle className="text-base">Skills</CardTitle></CardHeader>
             <CardContent>
               <div className="flex flex-wrap gap-2">
                 {resume.sections.skills.map((skill) => {
@@ -190,18 +272,19 @@ export default function ResumePage() {
                   );
                 })}
               </div>
-              <p className="text-xs text-muted-foreground mt-3"><span className="text-green-500">Green</span> = matches job description keywords</p>
+              <p className="text-xs text-muted-foreground mt-3"><span className="text-green-500">Green</span> = matches job description</p>
             </CardContent>
           </Card>
 
+          {/* Education + Certs */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <Card>
+            <Card className="card-3d">
               <CardHeader className="pb-3"><CardTitle className="text-base">Education</CardTitle></CardHeader>
               <CardContent>
-                {resume.sections.education.map((edu, i) => (<div key={i}><h4 className="font-medium text-sm">{edu.degree}</h4><p className="text-xs text-muted-foreground">{edu.college} &bull; {edu.year} &bull; GPA: {edu.gpa}</p></div>))}
+                {resume.sections.education.map((edu, i) => (<div key={i}><h4 className="font-medium text-sm">{edu.degree}</h4><p className="text-xs text-muted-foreground">{edu.college} &bull; {edu.year}{edu.gpa ? ` &bull; GPA: ${edu.gpa}` : ""}</p></div>))}
               </CardContent>
             </Card>
-            <Card>
+            <Card className="card-3d">
               <CardHeader className="pb-3"><CardTitle className="text-base">Certifications</CardTitle></CardHeader>
               <CardContent>
                 <ul className="space-y-1">
@@ -214,12 +297,12 @@ export default function ResumePage() {
 
         {/* AI Chat Panel */}
         <div className="lg:col-span-1">
-          <Card className="sticky top-8 h-[calc(100vh-12rem)] flex flex-col">
+          <Card className="lg:sticky lg:top-8 h-[500px] lg:h-[calc(100vh-12rem)] flex flex-col">
             <CardHeader className="pb-3">
               <CardTitle className="text-base flex items-center gap-2">
                 <Sparkles className="w-5 h-5 text-purple-500" /> AI Resume Assistant
               </CardTitle>
-              <p className="text-xs text-muted-foreground">Ask me to improve sections, add keywords, or suggest changes</p>
+              <p className="text-xs text-muted-foreground">Ask me to improve sections or match JD keywords</p>
             </CardHeader>
             <Separator />
             <CardContent className="flex-1 overflow-auto p-4 space-y-4">
@@ -234,13 +317,10 @@ export default function ResumePage() {
                       <li>&bull; &quot;Match keywords from the JD&quot;</li>
                     </ul>
                   </div>
-                  <div className="space-y-2">
-                    <p className="text-xs text-muted-foreground font-medium">Quick Actions:</p>
-                    <div className="flex flex-wrap gap-1.5">
-                      {["Improve summary", "Add numbers", "Make shorter", "Match JD"].map((a) => (
-                        <Button key={a} variant="outline" size="sm" className="text-xs h-7" onClick={() => setAiInput(a)}>{a}</Button>
-                      ))}
-                    </div>
+                  <div className="flex flex-wrap gap-1.5">
+                    {["Improve summary", "Add numbers", "Make shorter", "Match JD"].map((a) => (
+                      <Button key={a} variant="outline" size="sm" className="text-xs h-7" onClick={() => setAiInput(a)}>{a}</Button>
+                    ))}
                   </div>
                 </div>
               )}
@@ -249,8 +329,12 @@ export default function ResumePage() {
                   <p className="whitespace-pre-wrap">{msg.content}</p>
                   {msg.role === "assistant" && (
                     <div className="flex gap-2 mt-2 pt-2 border-t border-border/50">
-                      <Button variant="ghost" size="sm" className="text-xs h-6 px-2 gap-1"><Check className="w-3 h-3" /> Apply</Button>
-                      <Button variant="ghost" size="sm" className="text-xs h-6 px-2 gap-1"><RotateCcw className="w-3 h-3" /> Retry</Button>
+                      <Button variant="ghost" size="sm" className="text-xs h-6 px-2 gap-1" onClick={() => applyAiSuggestion(msg.content)}>
+                        <Check className="w-3 h-3" /> Apply to Summary
+                      </Button>
+                      <Button variant="ghost" size="sm" className="text-xs h-6 px-2 gap-1" onClick={() => { setAiInput("Try again differently"); }}>
+                        <RotateCcw className="w-3 h-3" /> Retry
+                      </Button>
                     </div>
                   )}
                 </div>
@@ -258,15 +342,15 @@ export default function ResumePage() {
               {isAiThinking && (
                 <div className="bg-accent rounded-lg p-3 flex items-center gap-2 mr-4">
                   <Loader2 className="w-4 h-4 animate-spin text-purple-500" />
-                  <span className="text-sm text-muted-foreground">Thinking...</span>
+                  <span className="text-sm text-muted-foreground">AI is thinking...</span>
                 </div>
               )}
             </CardContent>
             <Separator />
             <div className="p-4">
               <div className="flex gap-2">
-                <Input placeholder="Ask AI to improve your resume..." value={aiInput} onChange={(e) => setAiInput(e.target.value)} onKeyDown={(e) => e.key === "Enter" && handleAiSend()} className="text-sm" />
-                <Button size="icon" onClick={handleAiSend} disabled={!aiInput.trim()}><Send className="w-4 h-4" /></Button>
+                <Input placeholder="Ask AI to improve..." value={aiInput} onChange={(e) => setAiInput(e.target.value)} onKeyDown={(e) => e.key === "Enter" && handleAiSend()} className="text-sm" />
+                <Button size="icon" onClick={handleAiSend} disabled={!aiInput.trim() || isAiThinking}><Send className="w-4 h-4" /></Button>
               </div>
             </div>
           </Card>
