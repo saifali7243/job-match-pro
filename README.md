@@ -1,6 +1,8 @@
 # JobMatch Pro
 
-AI-powered job matching, resume tailoring, and recruiter contact finder. Built for India & Malaysia markets.
+A modern AI-powered career platform that helps job seekers discover relevant opportunities, optimize their resumes, and connect with recruiters faster. Designed specifically for the India and Malaysia job markets, JobMatch Pro combines intelligent job matching, resume customization, and recruiter outreach tools into a single seamless workflow.
+
+Whether you're a fresh graduate, experienced professional, or remote job seeker, JobMatch Pro helps streamline the entire job search process—from CV analysis and personalized job recommendations to AI-assisted resume tailoring and recruiter contact discovery.
 
 ## Features
 
